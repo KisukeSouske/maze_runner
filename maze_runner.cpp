@@ -1,22 +1,35 @@
 #include <stdio.h>
+#include <string.h>
 #include <stack>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <unistd.h>
 
-// Matriz de char representnado o labirinto
-char** maze; // Voce também pode representar o labirinto como um vetor de vetores de char (vector<vector<char>>)
+using namespace std;
 
-// Numero de linhas e colunas do labirinto
-int num_rows;
-int num_cols;
+string GAME_STATUS = "RUNNING";
 
 // Representação de uma posição
 struct pos_t {
 	int i;
 	int j;
 };
+//base de um labirinto
+struct maze_data {
+	string name;
+	char** maze;
+	int num_total_paths;
+	int num_rows;
+	int num_cols;
+	pos_t initial_pos;
+	pos_t exit_pos;
+};
+
 
 // Estrutura de dados contendo as próximas
 // posicões a serem exploradas no labirinto
-std::stack<pos_t> valid_positions;
+stack<pos_t> valid_positions;
 /* Inserir elemento: 
 
 	 pos_t pos;
@@ -33,79 +46,255 @@ std::stack<pos_t> valid_positions;
 // Remover o primeiro elemento do vetor: 
 //    valid_positions.pop();
 
+/*❚█══█❚▬▬ι═══════>-----------------------------------------------FUNCOES AUXILIARES-----------------------------------------------<═══════ι▬▬❚█══█❚*/
+bool isGameFinished(pos_t pos, maze_data mazeObj);
+string generateBanner(string text, int horizontalSize);
+string getCurrentDirectory();
+string gerarBannerASCII() {
+  string banner = R"(
+ _______  _______  _______  _______    _______           _        _        _______  _______ 
+(       )(  ___  )/ ___   )(  ____ \  (  ____ )|\     /|( (    /|( (    /|(  ____ \(  ____ )
+| () () || (   ) |\/   )  || (    \/  | (    )|| )   ( ||  \  ( ||  \  ( || (    \/| (    )|
+| || || || (___) |    /   )| (__      | (____)|| |   | ||   \ | ||   \ | || (__    | (____)|
+| |(_)| ||  ___  |   /   / |  __)     |     __)| |   | || (\ \) || (\ \) ||  __)   |     __)
+| |   | || (   ) |  /   /  | (        | (\ (   | |   | || | \   || | \   || (      | (\ (   
+| )   ( || )   ( | /   (_/\| (____/\  | ) \ \__| (___) || )  \  || )  \  || (____/\| ) \ \__
+|/     \||/     \|(_______/(_______/  |/   \__/(_______)|/    )_)|/    )_)(_______/|/   \__/
+                                                                                            
+)";
+
+  return banner;
+}
+/*❚█══█❚▬▬ι═══════>-----------------------------------------------FUNCOES PRINCIPAIS-----------------------------------------------<═══════ι▬▬❚█══█❚*/
+maze_data load_maze(string filePath, maze_data mazeObj);
+void print_maze(maze_data mazeObj);
+void walk(pos_t current_pos, maze_data current_maze);
+void freeMaze(maze_data mazeObj);
+/*❚█══█❚▬▬ι═══════>----------------------------------------------------MAIN--------------------------------------------------------<═══════ι▬▬❚█══█❚*/
+int main() {
+
+  	string banner = gerarBannerASCII();
+  	cout << banner << endl;
+	
+	maze_data mazeObj;
+	string fileName, path = "data/";
+	cout << "Digite o nome do labirinto que deseja abrir\n" << endl;
+	cin >> fileName;
+	path = getCurrentDirectory() + "\\data\\" + fileName + ".txt";
+
+	// carregar o labirinto com o nome do arquivo recebido como argumento
+	mazeObj = load_maze(path, mazeObj);
+	system("cls");
+	mazeObj.name = fileName + " " + to_string(mazeObj.num_rows) + " x " + to_string(mazeObj.num_cols);
+
+	// chamar a função de navegação
+	walk(mazeObj.initial_pos, mazeObj);
+	
+	// Tratar o retorno (imprimir mensagem)
+	cout << "Fim de jogo" << endl;
+	freeMaze(mazeObj);
+	
+	return 0;
+}
+
 
 // Função que le o labirinto de um arquivo texto, carrega em 
 // memória e retorna a posição inicial
-pos_t load_maze(const char* file_name) {
-	pos_t initial_pos;
+maze_data load_maze(string filePath, maze_data mazeObj) {
+	string dimensionsData;
+	char c;
+
 	// Abre o arquivo para leitura (fopen)
+	ifstream file(filePath);
+	if (!file.is_open()) {
+		string msg = "Nao foi possivel encontrar o seguinte diretorio: " + filePath;
+		throw runtime_error(msg);
+	}
 
 	// Le o numero de linhas e colunas (fscanf) 
+	getline(file, dimensionsData);
 	// e salva em num_rows e num_cols
+	stringstream ss(dimensionsData);
+  	ss >> mazeObj.num_rows >> mazeObj.num_cols;
+
+	mazeObj.num_total_paths = mazeObj.num_rows * mazeObj.num_rows;
 
 	// Aloca a matriz maze (malloc)
-	for (int i = 0; i < num_rows; ++i)
-		// Aloca cada linha da matriz
+	mazeObj.maze = new char*[mazeObj.num_rows];
+	for (int i = 0; i < mazeObj.num_rows; ++i) {
+		mazeObj.maze[i] = new char[mazeObj.num_cols];
+	}
 	
-	for (int i = 0; i < num_rows; ++i) {
-		for (int j = 0; j < num_cols; ++j) {
-			// Le o valor da linha i+1,j do arquivo e salva na posição maze[i][j]
-			// Se o valor for 'e' salvar o valor em initial_pos
+    // Lendo e preenchendo a matriz com os caracteres do arquivo
+	for (int i = 0; i < mazeObj.num_rows; ++i) {
+		for (int j = 0; j < mazeObj.num_cols; ++j) {
+			if (file.get(c) && c != '\n' && c != ' ') {
+				if (c == 'e') {
+					mazeObj.initial_pos.i = i;
+					mazeObj.initial_pos.j = j;
+				} else if (c == 's') {
+					mazeObj.exit_pos.i = i;
+					mazeObj.exit_pos.j = j;
+				}
+				mazeObj.maze[i][j] = c;
+			} else {
+				//Voltar o contador da coluna 1 unidade, pois este loop não contou
+				--j;
+			}
 		}
 	}
-	return initial_pos;
+
+	// Fecha o arquivo
+	file.close();
+	return mazeObj;
+}
+
+string getCurrentDirectory() {
+	char buffer[256];
+
+	if (getcwd(buffer, sizeof(buffer)) != nullptr) {
+		string currentDirectory(buffer);
+		// return currentDirectory;
+		return "C:\\Users\\Pichau\\UFMG\\2024_1\\ATR\\maze_runner-main\\maze_runner-main";
+	} else {
+		cout << "Erro ao obter o diretorio atual!" << endl;
+	}
 }
 
 // Função que imprime o labirinto
-void print_maze() {
-	for (int i = 0; i < num_rows; ++i) {
-		for (int j = 0; j < num_cols; ++j) {
-			printf("%c", maze[i][j]);
+void print_maze(maze_data mazeObj) {
+	// Imprimir a régua horizontal superior
+	printf("   ");
+	int coluna = 0;
+	for (int i = 0; i < mazeObj.num_cols; ++i) {
+		if (coluna == 10) {
+			coluna = 0;
 		}
-		printf("\n");
+		printf("%d", coluna);
+		coluna++;
+	}
+	printf("\n");
+
+	// Imprimir cada linha do labirinto
+	for (int i = 0; i < mazeObj.num_rows; ++i) {
+	// Imprimir o número da linha
+	printf("%2d ", i);
+
+	// Imprimir cada coluna da linha
+	for (int j = 0; j < mazeObj.num_cols; ++j) {
+		printf("%c", mazeObj.maze[i][j]);
+	}
+	// Nova linha
+	printf("\n");
 	}
 }
 
 
-// Função responsável pela navegação.
-// Recebe como entrada a posição initial e retorna um booleando indicando se a saída foi encontrada
-bool walk(pos_t pos) {
-	
-	// Repita até que a saída seja encontrada ou não existam mais posições não exploradas
-		// Marcar a posição atual com o símbolo '.'
-		// Limpa a tela
-		// Imprime o labirinto
-		
-		/* Dado a posição atual, verifica quais sao as próximas posições válidas
-			Checar se as posições abaixo são validas (i>0, i<num_rows, j>0, j <num_cols)
-		 	e se são posições ainda não visitadas (ou seja, caracter 'x') e inserir
-		 	cada uma delas no vetor valid_positions
-		 		- pos.i, pos.j+1
-		 		- pos.i, pos.j-1
-		 		- pos.i+1, pos.j
-		 		- pos.i-1, pos.j
-		 	Caso alguma das posiçÕes validas seja igual a 's', retornar verdadeiro
-	 	*/
+bool isGameFinished(pos_t pos, maze_data mazeObj) {
+	bool hasAvaiblePath = false;
 
-		
-	
-		// Verifica se a pilha de posições nao esta vazia 
-		//Caso não esteja, pegar o primeiro valor de  valid_positions, remove-lo e chamar a funçao walk com esse valor
-		// Caso contrario, retornar falso
-		if (!valid_positions.empty()) {
-			pos_t next_position = valid_positions.top();
-			valid_positions.pop();
+	if ((pos.i == mazeObj.exit_pos.i) && (pos.j == mazeObj.exit_pos.j)) {
+		GAME_STATUS = "VOCE GANHOU UHUL!";
+		return true;
+	}
+
+	for (int i = 0; i < mazeObj.num_rows; ++i) {
+		for (int j = 0; j < mazeObj.num_cols; ++j) {
+			if (mazeObj.maze[i][j] == 'x') {
+				hasAvaiblePath = true;
+			}
 		}
-	return false;
+	}
+
+	if (!hasAvaiblePath) {
+		GAME_STATUS = "VOCE EH UM PERDEDOR";
+	}
+
+	return !hasAvaiblePath;
 }
 
-int main(int argc, char* argv[]) {
-	// carregar o labirinto com o nome do arquivo recebido como argumento
-	pos_t initial_pos = load_maze(argv[1]);
-	// chamar a função de navegação
-	bool exit_found = walk(initial_pos);
+string generateBanner(string text, int horizontalSize) {
+  // Tamanho da string
+  int texSize = text.length();
+
+  // Ajusta o tamanho horizontal
+  if (horizontalSize < texSize + 4) {
+    horizontalSize = texSize + 4;
+  }
+
+  // Cria a string do banner
+  string banner = "";
+
+  // Borda superior
+  banner += "+";
+  for (int i = 0; i < horizontalSize - 2; i++) {
+    banner += "-";
+  }
+  banner += "+";
+
+  // Linha com texto
+  banner += "\n| ";
+  for (int i = 0; i < (horizontalSize - texSize - 4) / 2; i++) {
+    banner += " ";
+  }
+  banner += text;
+  for (int i = 0; i < (horizontalSize - texSize - 4) / 2 + (horizontalSize - texSize - 4) % 2; i++) {
+    banner += " ";
+  }
+  banner += " |\n";
+
+  // Borda inferior
+  banner += "+";
+  for (int i = 0; i < horizontalSize - 2; i++) {
+    banner += "-";
+  }
+  banner += "+";
+
+  return banner;
+}
+
+// Função responsável pela navegação.
+// Recebe como entrada a posição initial e retorna um booleando indicando se a saída foi encontrada
+void walk(pos_t current_pos, maze_data current_maze) {
+	string banner = generateBanner(current_maze.name, current_maze.num_cols + 3);
+	cout << banner << endl;
+	print_maze(current_maze);
+	int new_line_pos = -1;
+	int new_col_pos = -1;
+	bool endGame = isGameFinished(current_pos, current_maze);
+
+	if (endGame) {
+		cout << GAME_STATUS << endl;
+		return;
+	}
 	
-	// Tratar o retorno (imprimir mensagem)
-	
-	return 0;
+	cout << "Digite as coordenadas de destino (linha e colunaa)." << endl;
+	cin >> new_line_pos >> new_col_pos;
+	bool valid_line_cordinate = (new_line_pos >= 0) && (new_line_pos < current_maze.num_rows);
+	bool valid_col_cordinate = (new_col_pos >= 0) && (new_col_pos < current_maze.num_cols);
+
+	while (!valid_line_cordinate || !valid_col_cordinate || current_maze.maze[new_line_pos][new_col_pos] == '#' || current_maze.maze[new_line_pos][new_col_pos] == '.') {
+		cout << "Posicao nao permitida, tente novamente." << endl;
+		cin >> new_line_pos >> new_col_pos;
+		valid_line_cordinate = (new_line_pos >= 0) && (new_line_pos < current_maze.num_rows);
+		valid_col_cordinate = (new_col_pos >= 0) && (new_col_pos < current_maze.num_cols);
+	}
+
+	//posicao anterior vira '.'
+	current_maze.maze[current_pos.i][current_pos.j] = '.';
+	//posicao atual vira 'o'
+	current_maze.maze[new_line_pos][new_col_pos] = 'o';
+	current_pos.i = new_line_pos;
+	current_pos.j = new_col_pos;
+
+	system("cls");
+	walk(current_pos, current_maze);
+
+}
+
+void freeMaze(maze_data mazeObj) {
+  for (int i = 0; i < mazeObj.num_rows; i++) {
+    delete[] mazeObj.maze[i]; // Libera cada linha da matriz
+  }
+  delete[] mazeObj.maze; // Libera o ponteiro principal da matriz
 }
