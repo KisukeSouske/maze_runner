@@ -259,36 +259,39 @@ void walk(pos_t current_pos, maze_data current_maze) {
 	string banner = generateBanner(current_maze.name, current_maze.num_cols + 3);
 	cout << banner << endl;
 	print_maze(current_maze);
-	int new_line_pos = -1;
-	int new_col_pos = -1;
-	bool endGame = isGameFinished(current_pos, current_maze);
+	pos_t next_pos;
 
-	if (endGame) {
-		cout << GAME_STATUS << endl;
+	//Verifica deslocamento nas 4 direções
+	for (i = 0; i <= 1; i++) {
+		for (j = 0; j<= 1; j++) {
+			pos_t possible_pos;
+			possible_pos.i = current_pos.i + i;
+			possible_pos.j = current_pos.j + j;
+
+			bool valid_line_cordinate = (possible_pos.i >= 0) && (possible_pos.i < current_maze.num_rows);
+			bool valid_col_cordinate = (new_col_pos.j >= 0) && (possible_pos.j < current_maze.num_cols);
+			
+			if (valid_line_cordinate && valid_col_cordinate && current_maze.maze[new_line_pos][new_col_pos] != '#' && current_maze.maze[new_line_pos][new_col_pos] != '.') {
+				valid_positions.push(possible_pos);
+			}
+		}
+	}
+
+	if (possible_pos.empty() && !((current_pos.i == mazeObj.exit_pos.i) && (current_pos.j == mazeObj.exit_pos.j))) {
+		GAME_STATUS = "VOCE PERDEU";
 		return;
 	}
 	
-	cout << "Digite as coordenadas de destino (linha e colunaa)." << endl;
-	cin >> new_line_pos >> new_col_pos;
-	bool valid_line_cordinate = (new_line_pos >= 0) && (new_line_pos < current_maze.num_rows);
-	bool valid_col_cordinate = (new_col_pos >= 0) && (new_col_pos < current_maze.num_cols);
-
-	while (!valid_line_cordinate || !valid_col_cordinate || current_maze.maze[new_line_pos][new_col_pos] == '#' || current_maze.maze[new_line_pos][new_col_pos] == '.') {
-		cout << "Posicao nao permitida, tente novamente." << endl;
-		cin >> new_line_pos >> new_col_pos;
-		valid_line_cordinate = (new_line_pos >= 0) && (new_line_pos < current_maze.num_rows);
-		valid_col_cordinate = (new_col_pos >= 0) && (new_col_pos < current_maze.num_cols);
-	}
+	next_pos = valid_positions.top();
+	valid_positions.pop();
 
 	//posicao anterior vira '.'
 	current_maze.maze[current_pos.i][current_pos.j] = '.';
 	//posicao atual vira 'o'
-	current_maze.maze[new_line_pos][new_col_pos] = 'o';
-	current_pos.i = new_line_pos;
-	current_pos.j = new_col_pos;
+	current_maze.maze[next_pos.i][next_pos.j] = 'o';
 
 	system("cls");
-	walk(current_pos, current_maze);
+	walk(next_pos, current_maze);
 
 }
 
