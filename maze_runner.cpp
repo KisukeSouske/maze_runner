@@ -260,6 +260,7 @@ void walk(pos_t current_pos, maze_data current_maze) {
 	cout << banner << endl;
 	print_maze(current_maze);
 	pos_t next_pos;
+	bool foundExit = (current_pos.i == mazeObj.exit_pos.i) && (current_pos.j == mazeObj.exit_pos.j);
 
 	//Verifica deslocamento nas 4 direções
 	for (i = 0; i <= 1; i++) {
@@ -277,8 +278,11 @@ void walk(pos_t current_pos, maze_data current_maze) {
 		}
 	}
 
-	if (possible_pos.empty() && !((current_pos.i == mazeObj.exit_pos.i) && (current_pos.j == mazeObj.exit_pos.j))) {
-		GAME_STATUS = "VOCE PERDEU";
+	if (foundExit) {
+		GAME_STATUS = "VOCE GANHOU";
+		return;
+	} else if (possible_pos.empty() && !foundExit) {
+		GAME_STATUS = "VOCE PERDEU FI";
 		return;
 	}
 	
